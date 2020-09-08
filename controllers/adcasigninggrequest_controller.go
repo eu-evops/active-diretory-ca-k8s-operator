@@ -18,7 +18,11 @@ package controllers
 
 import (
 	"context"
+	"crypto/x509"
+	"encoding/pem"
 	"fmt"
+	"os"
+	"time"
 
 	corev1 "k8s.io/api/core/v1"
 
@@ -26,6 +30,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -41,36 +46,97 @@ type ADCASigninggRequestReconciler struct {
 	Scheme *runtime.Scheme
 }
 
+func toPem(c *x509.Certificate) []byte {
+	block := &pem.Block{
+		Type:  "CERTIFICATE",
+		Bytes: c.Raw,
+	}
+
+	return pem.EncodeToMemory(block)
+}
+
+// Reconcile is the main method called when resources are created/updated
 // +kubebuilder:rbac:groups=adca.evops.eu,resources=adcasigninggrequests,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=adca.evops.eu,resources=adcasigninggrequests/status,verbs=get;update;patch
 func (r *ADCASigninggRequestReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
+
+	config := &corev1.ConfigMap{}
+	err := r.Get(context.TODO(), types.NamespacedName{Name: "adca-config", Namespace: os.Getenv("WATCH_NAMESPACE")}, config)
+	if err != nil {
+		r.Log.Error(err, "Could not find Operator configuration, you need to provide adca-config")
+		requeueAfter, _ := time.ParseDuration("1m")
+		return reconcile.Result{RequeueAfter: requeueAfter}, nil
+	}
+
+	adcaCredential := &corev1.Secret{}
+	err = r.Get(context.TODO(), types.NamespacedName{Name: config.Data["adcaCredentialSecretName"], Namespace: os.Getenv("WATCH_NAMESPACE")}, adcaCredential)
+	if err != nil {
+		r.Log.Error(err, "Could not find AD CA credentials secret")
+		requeueAfter, _ := time.ParseDuration("1m")
+		return reconcile.Result{RequeueAfter: requeueAfter}, nil
+	}
+
 	_ = context.Background()
 	_ = r.Log.WithValues("adcasigninggrequest", req.NamespacedName)
 
 	certsrv := &Certsrv{
-		Server: "axaxl.com",
-	}
-	if err := certsrv.ValidateCredentials(); err != nil {
-		return reconcile.Result{}, err
+		Server:   config.Data["server"],
+		Username: string(adcaCredential.Data["username"]),
+		Password: string(adcaCredential.Data["password"]),
 	}
 
-	ctrl.Log.Info("Reconciling state %s...")
-	ctrl.Log.Info(req.String())
+	if err := certsrv.ValidateCredentials(); err != nil {
+		r.Log.Error(err, "Could not authenticate with AD CA server")
+		requeueAfter, _ := time.ParseDuration("1m")
+		return reconcile.Result{RequeueAfter: requeueAfter}, nil
+	}
 
 	signingRequest := &adcav1.ADCASigninggRequest{}
 	r.Get(context.TODO(), req.NamespacedName, signingRequest)
 
+	privateKey, reqID := certsrv.Submit(signingRequest.Spec.Domain)
+	caCerts := certsrv.RetrieveCACerts()
+
+	cert := certsrv.Retrieve(reqID)
+
+	certificateChain := []*x509.Certificate{}
+	certificateChain = append(certificateChain, cert)
+	certificateChain = append(certificateChain, caCerts...)
+
+	privateKeyPemBlock := &pem.Block{
+		Type:  "RSA PRIVATE KEY",
+		Bytes: x509.MarshalPKCS1PrivateKey(privateKey),
+	}
+	privateKeyBytes := pem.EncodeToMemory(privateKeyPemBlock)
+
+	certificateChainBytes := []byte{}
+
+	for _, c := range certificateChain {
+		certificateChainBytes = append(certificateChainBytes, toPem(c)...)
+	}
+
+	certBytes := toPem(cert)
+
 	secretName := fmt.Sprintf("%s-tls", req.Name)
 	secret := &corev1.Secret{}
-	err := r.Client.Get(context.TODO(), types.NamespacedName{Name: secretName, Namespace: req.NamespacedName.Namespace}, secret)
+	err = r.Client.Get(context.TODO(), types.NamespacedName{Name: secretName, Namespace: req.NamespacedName.Namespace}, secret)
 	if err != nil && errors.IsNotFound(err) {
 		r.Log.Info("Not got the secret")
 
 		secret.Namespace = req.NamespacedName.Namespace
 		secret.Name = secretName
-		secret.StringData = map[string]string{
-			"Stan": req.Name,
+		secret.Type = "kubernetes.io/tls"
+
+		secret.Data = map[string][]byte{
+			"tls.crtChain": certificateChainBytes,
+			"tls.crt":      certBytes,
+			"tls.key":      privateKeyBytes,
 		}
+
+		for _, c := range caCerts {
+			secret.Data[c.Subject.CommonName] = toPem(c)
+		}
+
 		err = r.Create(context.TODO(), secret)
 		if err != nil {
 			return reconcile.Result{}, err
@@ -80,6 +146,13 @@ func (r *ADCASigninggRequestReconciler) Reconcile(req ctrl.Request) (ctrl.Result
 		r.Status().Update(context.TODO(), signingRequest)
 	} else {
 		r.Log.Info("Got the secret")
+		secret.Data["tls.crtChain"] = certificateChainBytes
+		secret.Data["tls.crt"] = certBytes
+		secret.Data["tls.key"] = privateKeyBytes
+		for _, c := range caCerts {
+			secret.Data[c.Subject.CommonName] = toPem(c)
+		}
+		r.Update(context.TODO(), secret)
 	}
 
 	event := &corev1.Event{}
@@ -104,7 +177,14 @@ func (r *ADCASigninggRequestReconciler) Reconcile(req ctrl.Request) (ctrl.Result
 	return ctrl.Result{}, nil
 }
 
+// SetupWithManager initiates k8s operator
 func (r *ADCASigninggRequestReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	_, found := os.LookupEnv("WATCH_NAMESPACE")
+	if !found {
+		objRef := &schema.GroupResource{Group: "WATCH_NAMESPACE", Resource: "env"}
+		return errors.NewNotFound(*objRef, "Failed to obtain WATCH_NAMESPACE environment variable")
+	}
+
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&adcav1.ADCASigninggRequest{}).
 		Complete(r)
