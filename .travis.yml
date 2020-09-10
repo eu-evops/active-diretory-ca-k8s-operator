@@ -12,7 +12,7 @@ go:
   - 1.13.x
 
 env:
-  jobs:
+  global:
     - ENVTEST_ASSETS_DIR=./testbin
     - SETUP_ENVTEST_SCRIPT_URL=https://raw.githubusercontent.com/kubernetes-sigs/controller-runtime/master/hack/setup-envtest.sh
 
