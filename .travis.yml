@@ -16,12 +16,23 @@ env:
     - ENVTEST_ASSETS_DIR=/tmp/testbin
     - SETUP_ENVTEST_SCRIPT_URL=https://raw.githubusercontent.com/kubernetes-sigs/controller-runtime/master/hack/setup-envtest.sh
 
+services:
+  - docker
+
 before_script:
   - mkdir -p $ENVTEST_ASSETS_DIR
   - test -f $ENVTEST_ASSETS_DIR/setup-envtest.sh || curl -sSLo $ENVTEST_ASSETS_DIR/setup-envtest.sh $SETUP_ENVTEST_SCRIPT_URL
   - source $ENVTEST_ASSETS_DIR/setup-envtest.sh
   - fetch_envtest_tools $ENVTEST_ASSETS_DIR
   - setup_envtest_env $ENVTEST_ASSETS_DIR
+
+script:
+  - make
+  - export TRAVIS_TAG=${TRAVIS_TAG:-$(date +'%Y%m%d%H%M%S')-$(git log --format=%h -1)}
+  - docker build -t eu-evops/active-diretory-ca-k8s-operator:latest -t eu-evops/active-diretory-ca-k8s-operator:$TRAVIS_TAG .
+  - echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
+  - docker push eu-evops/active-diretory-ca-k8s-operator:latest
+  - docker push eu-evops/active-diretory-ca-k8s-operator:$TRAVIS_TAG
 
 after_success:
   - bash <(curl -s https://codecov.io/bash)
