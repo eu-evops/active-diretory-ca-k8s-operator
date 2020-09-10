@@ -15,7 +15,6 @@
 #  limitations under the License.
 
 set -o errexit
-set -o pipefail
 
 # Turn colors in this script off by setting the NO_COLOR variable in your
 # environment to any value:
