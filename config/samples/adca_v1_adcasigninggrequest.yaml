@@ -1,7 +1,7 @@
 apiVersion: adca.evops.eu/v1
-kind: ADCASigninggRequest
+kind: ADCAsigningRequest
 metadata:
-  name: adcasigninggrequest-sample
+  name: adcasigningrequest-sample
 spec:
   # Add fields here
   domain: testing

@@ -28,11 +28,11 @@ type Certsrv struct {
 
 // ValidateCredentials validates username/password against certsrv endpoint
 func (c *Certsrv) ValidateCredentials() error {
-	print("Validating credentials for " + c.Server)
+	log.Println("Validating credentials for " + c.Server)
 
 	client := &http.Client{}
 
-	req, err := http.NewRequest("GET", "https://"+c.Server+"/certsrv/", nil)
+	req, err := http.NewRequest("GET", c.Server+"/certsrv/", nil)
 	req.SetBasicAuth(c.Username, c.Password)
 
 	resp, err := client.Do(req)
@@ -50,11 +50,11 @@ func (c *Certsrv) ValidateCredentials() error {
 }
 
 // Retrieve downloads x509 certificate from AD CA based on requestID
-func (c *Certsrv) Retrieve(requestID int) *x509.Certificate {
+func (c *Certsrv) Retrieve(requestID int) (*x509.Certificate, error) {
 	log.Println(fmt.Sprintf("Retrieving certificate with request id: %d", requestID))
 
 	client := &http.Client{}
-	url := fmt.Sprintf("https://%s/certsrv/certnew.cer?ReqID=%d&Enc=%s", c.Server, requestID, "bin")
+	url := fmt.Sprintf("%s/certsrv/certnew.cer?ReqID=%d&Enc=%s", c.Server, requestID, "bin")
 	request, _ := http.NewRequest("GET", url, nil)
 
 	request.Header = map[string][]string{
@@ -62,18 +62,27 @@ func (c *Certsrv) Retrieve(requestID int) *x509.Certificate {
 	}
 	request.SetBasicAuth(c.Username, c.Password)
 
-	response, _ := client.Do(request)
+	response, err := client.Do(request)
+	if err != nil {
+		return nil, err
+	}
 
-	body, _ := ioutil.ReadAll(response.Body)
+	body, err := ioutil.ReadAll(response.Body)
+	if err != nil {
+		return nil, err
+	}
 
-	cert, _ := x509.ParseCertificate(body)
+	cert, err := x509.ParseCertificate(body)
+	if err != nil {
+		return nil, err
+	}
 
-	return cert
+	return cert, nil
 }
 
 // RetrieveCACerts downloads CA certificates from AD CA
 func (c *Certsrv) RetrieveCACerts() []*x509.Certificate {
-	caCertURL := fmt.Sprintf("https://%s/certsrv/certnew.p7b?ReqID=CACert&Renewal=0&Enc=bin", c.Server)
+	caCertURL := fmt.Sprintf("%s/certsrv/certnew.p7b?ReqID=CACert&Renewal=0&Enc=bin", c.Server)
 
 	log.Printf("Requesting CA certificates from %s", caCertURL)
 
@@ -94,7 +103,7 @@ func (c *Certsrv) Submit(domain string) (*rsa.PrivateKey, int) {
 	log.Println(fmt.Sprintf("Submitting certificate request for domain: %s", domain))
 
 	client := &http.Client{}
-	requestURL := fmt.Sprintf("https://%s/certsrv/certfnsh.asp", c.Server)
+	requestURL := fmt.Sprintf("%s/certsrv/certfnsh.asp", c.Server)
 
 	keyBytes, _ := rsa.GenerateKey(rand.Reader, 4096)
 	subj := pkix.Name{
@@ -102,8 +111,8 @@ func (c *Certsrv) Submit(domain string) (*rsa.PrivateKey, int) {
 		Country:            []string{"GB"},
 		Province:           []string{"Greater London"},
 		Locality:           []string{"London"},
-		Organization:       []string{"AXA XL"},
-		OrganizationalUnit: []string{"Platform & Automation"},
+		Organization:       []string{"Evops Limited"},
+		OrganizationalUnit: []string{"IT"},
 	}
 
 	rawSubj := subj.ToRDNSequence()

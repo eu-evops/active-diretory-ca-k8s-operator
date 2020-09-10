@@ -4,7 +4,7 @@ projectName: evops-eu
 repo: github.com/eu-evops/active-diretory-ca-k8s-operator
 resources:
 - group: adca
-  kind: ADCASigninggRequest
+  kind: ADCAsigningRequest
   version: v1
 version: 3-alpha
 plugins:

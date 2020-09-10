@@ -23,41 +23,44 @@ import (
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
-// ADCASigninggRequestSpec defines the desired state of ADCASigninggRequest
-type ADCASigninggRequestSpec struct {
+// ADCASigningRequestSpec defines the desired state of ADCASigningRequest
+type ADCASigningRequestSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
-	Domain string `json:"domain,omitempty"`
+	Domain   string   `json:"domain,omitempty"`
+	SanNames []string `json:"sanNames,omitempty"`
 }
 
-// ADCASigninggRequestStatus defines the observed state of ADCASigninggRequest
-type ADCASigninggRequestStatus struct {
+// ADCASigningRequestStatus defines the observed state of ADCASigningRequest
+type ADCASigningRequestStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 	Provisioned bool `json:"provisioned,omitempty"`
 }
 
+// +kubebuilder:printcolumn:JSONPath=.spec.domain,description="Requested domain",name=Domain,type=string
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
+// +kubebuilder:resource:shortName={adcacsr,adcacsrs}
 
-// ADCASigninggRequest is the Schema for the adcasigninggrequests API
-type ADCASigninggRequest struct {
+// ADCASigningRequest is the Schema for the adcasigningrequests API
+type ADCASigningRequest struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   ADCASigninggRequestSpec   `json:"spec,omitempty"`
-	Status ADCASigninggRequestStatus `json:"status,omitempty"`
+	Spec   ADCASigningRequestSpec   `json:"spec,omitempty"`
+	Status ADCASigningRequestStatus `json:"status,omitempty"`
 }
 
 // +kubebuilder:object:root=true
 
-// ADCASigninggRequestList contains a list of ADCASigninggRequest
-type ADCASigninggRequestList struct {
+// ADCASigningRequestList contains a list of ADCASigningRequest
+type ADCASigningRequestList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []ADCASigninggRequest `json:"items"`
+	Items           []ADCASigningRequest `json:"items"`
 }
 
 func init() {
-	SchemeBuilder.Register(&ADCASigninggRequest{}, &ADCASigninggRequestList{})
+	SchemeBuilder.Register(&ADCASigningRequest{}, &ADCASigningRequestList{})
 }

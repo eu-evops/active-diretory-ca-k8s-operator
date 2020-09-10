@@ -6,21 +6,28 @@ metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.3.0
   creationTimestamp: null
-  name: adcasigninggrequests.adca.evops.eu
+  name: adcasigningrequests.adca.evops.eu
 spec:
+  additionalPrinterColumns:
+  - JSONPath: .spec.domain
+    description: Requested domain
+    name: Domain
+    type: string
   group: adca.evops.eu
   names:
-    kind: ADCASigninggRequest
-    listKind: ADCASigninggRequestList
-    plural: adcasigninggrequests
-    singular: adcasigninggrequest
+    kind: ADCASigningRequest
+    listKind: ADCASigningRequestList
+    plural: adcasigningrequests
+    shortNames:
+    - adcacsr
+    - adcacsrs
+    singular: adcasigningrequest
   scope: Namespaced
   subresources:
     status: {}
   validation:
     openAPIV3Schema:
-      description: ADCASigninggRequest is the Schema for the adcasigninggrequests
-        API
+      description: ADCASigningRequest is the Schema for the adcasigningrequests API
       properties:
         apiVersion:
           description: 'APIVersion defines the versioned schema of this representation
@@ -35,15 +42,25 @@ spec:
         metadata:
           type: object
         spec:
-          description: ADCASigninggRequestSpec defines the desired state of ADCASigninggRequest
+          description: ADCASigningRequestSpec defines the desired state of ADCASigningRequest
           properties:
-            foo:
-              description: Foo is an example field of ADCASigninggRequest. Edit ADCASigninggRequest_types.go
-                to remove/update
+            domain:
+              description: 'INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
+                Important: Run "make" to regenerate code after modifying this file'
               type: string
+            sanNames:
+              items:
+                type: string
+              type: array
           type: object
         status:
-          description: ADCASigninggRequestStatus defines the observed state of ADCASigninggRequest
+          description: ADCASigningRequestStatus defines the observed state of ADCASigningRequest
+          properties:
+            provisioned:
+              description: 'INSERT ADDITIONAL STATUS FIELD - define observed state
+                of cluster Important: Run "make" to regenerate code after modifying
+                this file'
+              type: boolean
           type: object
       type: object
   version: v1

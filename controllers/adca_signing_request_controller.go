@@ -22,6 +22,7 @@ import (
 	"encoding/pem"
 	"fmt"
 	"os"
+	"regexp"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -39,11 +40,16 @@ import (
 	adcav1 "github.com/eu-evops/active-diretory-ca-k8s-operator/api/v1"
 )
 
-// ADCASigninggRequestReconciler reconciles a ADCASigninggRequest object
-type ADCASigninggRequestReconciler struct {
+// ADCASigningRequestReconciler reconciles a ADCASigningRequest object
+type ADCASigningRequestReconciler struct {
 	client.Client
 	Log    logr.Logger
 	Scheme *runtime.Scheme
+}
+
+func toDNSName(name string) string {
+	pattern := regexp.MustCompile("[^\\d\\w]")
+	return pattern.ReplaceAllLiteralString(name, "")
 }
 
 func toPem(c *x509.Certificate) []byte {
@@ -56,16 +62,17 @@ func toPem(c *x509.Certificate) []byte {
 }
 
 // Reconcile is the main method called when resources are created/updated
-// +kubebuilder:rbac:groups=adca.evops.eu,resources=adcasigninggrequests,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=adca.evops.eu,resources=adcasigninggrequests/status,verbs=get;update;patch
-func (r *ADCASigninggRequestReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
+// +kubebuilder:rbac:groups=adca.evops.eu,resources=adcasigningrequests,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=adca.evops.eu,resources=adcasigningrequests/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=core,resources=configMaps,secrets,verbs=get;list;
+func (r *ADCASigningRequestReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 
 	config := &corev1.ConfigMap{}
 	err := r.Get(context.TODO(), types.NamespacedName{Name: "adca-config", Namespace: os.Getenv("WATCH_NAMESPACE")}, config)
 	if err != nil {
 		r.Log.Error(err, "Could not find Operator configuration, you need to provide adca-config")
 		requeueAfter, _ := time.ParseDuration("1m")
-		return reconcile.Result{RequeueAfter: requeueAfter}, nil
+		return reconcile.Result{RequeueAfter: requeueAfter, Requeue: true}, nil
 	}
 
 	adcaCredential := &corev1.Secret{}
@@ -73,11 +80,11 @@ func (r *ADCASigninggRequestReconciler) Reconcile(req ctrl.Request) (ctrl.Result
 	if err != nil {
 		r.Log.Error(err, "Could not find AD CA credentials secret")
 		requeueAfter, _ := time.ParseDuration("1m")
-		return reconcile.Result{RequeueAfter: requeueAfter}, nil
+		return reconcile.Result{RequeueAfter: requeueAfter, Requeue: true}, nil
 	}
 
 	_ = context.Background()
-	_ = r.Log.WithValues("adcasigninggrequest", req.NamespacedName)
+	_ = r.Log.WithValues("adca-signing-request", req.NamespacedName)
 
 	certsrv := &Certsrv{
 		Server:   config.Data["server"],
@@ -91,13 +98,16 @@ func (r *ADCASigninggRequestReconciler) Reconcile(req ctrl.Request) (ctrl.Result
 		return reconcile.Result{RequeueAfter: requeueAfter}, nil
 	}
 
-	signingRequest := &adcav1.ADCASigninggRequest{}
+	signingRequest := &adcav1.ADCASigningRequest{}
 	r.Get(context.TODO(), req.NamespacedName, signingRequest)
 
 	privateKey, reqID := certsrv.Submit(signingRequest.Spec.Domain)
 	caCerts := certsrv.RetrieveCACerts()
 
-	cert := certsrv.Retrieve(reqID)
+	cert, err := certsrv.Retrieve(reqID)
+	if err != nil {
+		return reconcile.Result{}, err
+	}
 
 	certificateChain := []*x509.Certificate{}
 	certificateChain = append(certificateChain, cert)
@@ -134,7 +144,7 @@ func (r *ADCASigninggRequestReconciler) Reconcile(req ctrl.Request) (ctrl.Result
 		}
 
 		for _, c := range caCerts {
-			secret.Data[c.Subject.CommonName] = toPem(c)
+			secret.Data[toDNSName(c.Subject.CommonName)] = toPem(c)
 		}
 
 		err = r.Create(context.TODO(), secret)
@@ -150,7 +160,7 @@ func (r *ADCASigninggRequestReconciler) Reconcile(req ctrl.Request) (ctrl.Result
 		secret.Data["tls.crt"] = certBytes
 		secret.Data["tls.key"] = privateKeyBytes
 		for _, c := range caCerts {
-			secret.Data[c.Subject.CommonName] = toPem(c)
+			secret.Data[toDNSName(c.Subject.CommonName)] = toPem(c)
 		}
 		r.Update(context.TODO(), secret)
 	}
@@ -178,7 +188,7 @@ func (r *ADCASigninggRequestReconciler) Reconcile(req ctrl.Request) (ctrl.Result
 }
 
 // SetupWithManager initiates k8s operator
-func (r *ADCASigninggRequestReconciler) SetupWithManager(mgr ctrl.Manager) error {
+func (r *ADCASigningRequestReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	_, found := os.LookupEnv("WATCH_NAMESPACE")
 	if !found {
 		objRef := &schema.GroupResource{Group: "WATCH_NAMESPACE", Resource: "env"}
@@ -186,6 +196,6 @@ func (r *ADCASigninggRequestReconciler) SetupWithManager(mgr ctrl.Manager) error
 	}
 
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&adcav1.ADCASigninggRequest{}).
+		For(&adcav1.ADCASigningRequest{}).
 		Complete(r)
 }

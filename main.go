@@ -67,12 +67,12 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err = (&controllers.ADCASigninggRequestReconciler{
+	if err = (&controllers.ADCASigningRequestReconciler{
 		Client: mgr.GetClient(),
-		Log:    ctrl.Log.WithName("controllers").WithName("ADCASigninggRequest"),
+		Log:    ctrl.Log.WithName("controllers").WithName("ADCASigningRequest"),
 		Scheme: mgr.GetScheme(),
 	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "ADCASigninggRequest")
+		setupLog.Error(err, "unable to create controller", "controller", "ADCAsigningRequest")
 		os.Exit(1)
 	}
 	// +kubebuilder:scaffold:builder

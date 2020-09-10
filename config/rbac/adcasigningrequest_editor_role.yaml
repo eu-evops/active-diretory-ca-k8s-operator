@@ -1,9 +1,8 @@
----
+# permissions for end users to edit adcasigningrequests.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  creationTimestamp: null
-  name: manager-role
+  name: adcasigningrequest-editor-role
 rules:
   - apiGroups:
       - adca.evops.eu
@@ -23,5 +22,3 @@ rules:
       - adcasigningrequests/status
     verbs:
       - get
-      - patch
-      - update

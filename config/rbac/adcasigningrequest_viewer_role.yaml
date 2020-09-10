@@ -1,21 +1,16 @@
----
+# permissions for end users to view adcasigningrequests.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  creationTimestamp: null
-  name: manager-role
+  name: adcasigningrequest-viewer-role
 rules:
   - apiGroups:
       - adca.evops.eu
     resources:
       - adcasigningrequests
     verbs:
-      - create
-      - delete
       - get
       - list
-      - patch
-      - update
       - watch
   - apiGroups:
       - adca.evops.eu
@@ -23,5 +18,3 @@ rules:
       - adcasigningrequests/status
     verbs:
       - get
-      - patch
-      - update
