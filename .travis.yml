@@ -29,10 +29,10 @@ before_script:
 script:
   - make
   - export TRAVIS_TAG=${TRAVIS_TAG:-$(date +'%Y%m%d%H%M%S')-$(git log --format=%h -1)}
-  - docker build -t eu-evops/active-diretory-ca-k8s-operator:latest -t eu-evops/active-diretory-ca-k8s-operator:$TRAVIS_TAG .
+  - docker build -t evops/active-diretory-ca-k8s-operator:latest -t evops/active-diretory-ca-k8s-operator:$TRAVIS_TAG .
   - echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
-  - docker push eu-evops/active-diretory-ca-k8s-operator:latest
-  - docker push eu-evops/active-diretory-ca-k8s-operator:$TRAVIS_TAG
+  - docker push evops/active-diretory-ca-k8s-operator:latest
+  - docker push evops/active-diretory-ca-k8s-operator:$TRAVIS_TAG
 
 after_success:
   - bash <(curl -s https://codecov.io/bash)
