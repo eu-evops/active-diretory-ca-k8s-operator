@@ -33,7 +33,6 @@ import (
 	. "github.com/onsi/gomega"
 	PKCS7 "go.mozilla.org/pkcs7"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -142,12 +141,9 @@ var _ = Describe("Controllers/Adcasigningrequest", func() {
 			Client: k8sClient,
 			Log:    logf.Log,
 		}
-		request := ctrl.Request{
-			types.NamespacedName{
-				Name:      signingRequest.Name,
-				Namespace: signingRequest.Namespace,
-			},
-		}
+		request := ctrl.Request{}
+		request.Name = signingRequest.Name
+		request.Namespace = signingRequest.Namespace
 
 		result, err := reconciler.Reconcile(request)
 
